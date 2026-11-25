@@ -1,0 +1,732 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------
+// AUTHENTICATION & USERS
+// -----------------------------------------
+
+model User {
+  id                   String    @id @default(uuid())
+  email                String    @unique
+  loginCode            String?   @unique
+  passwordHash         String
+  pinHash              String?
+  pinFailedAttempts    Int       @default(0)
+  pinLockedUntil       DateTime?
+  role                 String    @default("PATIENT") // "PATIENT", "CAREGIVER", "CLINICIAN"
+  createdByCaregiverId String?
+  isActive             Boolean   @default(true)
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  patientProfile       PatientProfile?
+  caregiverProfile     CaregiverProfile?
+  clinicianProfile     ClinicianProfile?
+
+  auditLogs            AuditLog[]
+  deviceSessions       DeviceSession[]
+  pushSubscriptions    PushSubscription[]
+}
+
+// -----------------------------------------
+// PROFILES & ROLES
+// -----------------------------------------
+
+model PatientProfile {
+  id                  String   @id @default(uuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName            String
+  dateOfBirth         DateTime?
+  bloodGroup          String?
+  emergencyContact    String?
+  preferredLanguage   String?  @default("en")
+
+  diagnoses           String?
+  allergies           String?
+  dietaryRestrictions String?
+  cognitiveBaseline   Int?
+  mobilityInfo        String?
+  isAccountClaimed    Boolean  @default(true)
+  retentionDays       Int      @default(730)
+
+  preferences         PatientPreference?
+  provisionTokens     PatientProvisionToken[]
+  consents            ConsentRecord[]
+  syncMutations       SyncMutation[]
+  mediaAssets         MediaAsset[]
+
+  caregivers          PatientCaregiver[]
+  careCircle          CareCircleMember[]
+  medications         Medication[]
+  medicationEvents    MedicationEvent[]
+  hydrationTargets    HydrationTarget[]
+  hydrationEvents     HydrationEvent[]
+  caregiverReports    CaregiverReport[]
+  vitalLogs           VitalLog[]
+  sleepRecords        SleepRecord[]
+  activityRecords     ActivityRecord[]
+  moodRecords         MoodRecord[]
+  cognitiveSessions   CognitiveSession[]
+  healthScores        HealthScore[]
+  dailyRoutines       DailyRoutine[]
+  routineOccurrences  RoutineOccurrence[]
+  voiceReminders      VoiceReminder[]
+  safeZones           SafeZone[]
+  locationPings       LocationPing[]
+  locationEvents      LocationEvent[]
+  wellbeingEntries    WellbeingEntry[]
+  careUpdates         CareUpdate[]
+  familyAssets        FamilyAsset[]
+  scrapbookEntries    ScrapbookEntry[]
+  savedResources      SavedResource[]
+}
+
+model CaregiverProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName    String
+  phoneNumber String?
+
+  patients    PatientCaregiver[]
+  careCircles CareCircleMember[]
+  invitations PairingInvitation[]
+  reports     CaregiverReport[]
+}
+
+model ClinicianProfile {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName       String
+  specialization String?
+  hospital       String?
+
+  prescribedMeds Medication[]
+  careCircles    CareCircleMember[]
+}
+
+// -----------------------------------------
+// PAIRING & CARE CIRCLE
+// -----------------------------------------
+
+model PatientCaregiver {
+  id           String           @id @default(uuid())
+  patientId    String
+  caregiverId  String
+  status       String           @default("ACTIVE")
+  createdAt    DateTime         @default(now())
+
+  patient      PatientProfile   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  caregiver    CaregiverProfile @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, caregiverId])
+  @@index([caregiverId, status])
+}
+
+model CareCircleMember {
+  id             String            @id @default(uuid())
+  patientId      String
+  caregiverId    String?
+  clinicianId    String?
+  role           String            // PRIMARY_CAREGIVER, SECONDARY, FAMILY, CLINICIAN
+  permissions    String            // JSON array of permission scopes
+  status         String            @default("ACTIVE")
+  createdAt      DateTime          @default(now())
+
+  patient        PatientProfile    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  caregiver      CaregiverProfile? @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+  clinician      ClinicianProfile? @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, status])
+  @@index([caregiverId, status])
+  @@index([clinicianId, status])
+}
+
+model PairingInvitation {
+  id          String           @id @default(uuid())
+  caregiverId String
+  code        String           @unique
+  status      String           @default("PENDING")
+  expiresAt   DateTime
+  createdAt   DateTime         @default(now())
+
+  caregiver   CaregiverProfile @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+
+  @@index([caregiverId, status])
+}
+
+// -----------------------------------------
+// CLINICAL & HEALTH DATA
+// -----------------------------------------
+
+model Medication {
+  id           String            @id @default(uuid())
+  patientId    String
+  clinicianId  String?
+  name         String
+  dosage       String
+  frequency    String
+  time         String?           // Optional HH:MM schedule
+  instructions String?
+  imageUrl     String?
+  mediaAssetId String?
+  status       String            @default("ACTIVE")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  patient      PatientProfile    @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  clinician    ClinicianProfile? @relation(fields: [clinicianId], references: [id])
+  events       MedicationEvent[]
+
+  @@index([patientId, status])
+}
+
+model MedicationEvent {
+  id               String         @id @default(uuid())
+  patientId        String
+  medicationId     String
+  scheduledTime    DateTime
+  actualTime       DateTime?
+  action           String
+  status           String         @default("ACTIVE")
+  recordedByUserId String?
+  source           String         @default("PATIENT_REPORTED") // PATIENT_REPORTED, CAREGIVER_CONFIRMED, CLINICIAN_RECORDED
+  clientMutationId String?
+  deviceId         String?
+  createdAt        DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medication       Medication     @relation(fields: [medicationId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, scheduledTime, status])
+  @@index([medicationId, status])
+}
+
+model HydrationTarget {
+  id            String         @id @default(uuid())
+  patientId     String
+  targetMl      Int
+  effectiveFrom DateTime       @default(now())
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, effectiveFrom])
+}
+
+model HydrationEvent {
+  id               String         @id @default(uuid())
+  patientId        String
+  amountMl         Int
+  timestamp        DateTime       @default(now())
+  status           String         @default("ACTIVE")
+  clientMutationId String?
+  deviceId         String?
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, timestamp, status])
+}
+
+// -----------------------------------------
+// TELEMETRY, ROUTINES & SAFETY
+// -----------------------------------------
+
+model VitalLog {
+  id               String         @id @default(uuid())
+  patientId        String
+  weight           Float?
+  sysBp            Int?
+  diaBp            Int?
+  heartRate        Int?
+  clientMutationId String?
+  deviceId         String?
+  recordedAt       DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, recordedAt])
+}
+
+model SleepRecord {
+  id            String         @id @default(uuid())
+  patientId     String
+  date          DateTime
+  durationMins  Int
+  interruptions Int?
+  qualityScore  Int?
+  source        String         @default("MANUAL")
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, date])
+}
+
+model ActivityRecord {
+  id           String         @id @default(uuid())
+  patientId    String
+  activityType String
+  durationMins Int
+  steps        Int?
+  date         DateTime
+  source       String         @default("MANUAL")
+
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, date])
+}
+
+model MoodRecord {
+  id               String         @id @default(uuid())
+  patientId        String
+  moodScore        Int
+  note             String?
+  clientMutationId String?
+  deviceId         String?
+  recordedAt       DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, recordedAt])
+}
+
+model WellbeingEntry {
+  id               String         @id @default(uuid())
+  patientId        String
+  date             String         // Local YYYY-MM-DD
+  timestamp        DateTime       @default(now())
+  recordedBy       String
+  source           String         // PATIENT_REPORTED, CAREGIVER_OBSERVED, CLINICIAN_ENTERED
+  mood             Int
+  sleepQuality     Int
+  confusionLevel   Int
+  energyLevel      Int
+  painLevel        Int
+  overallWellbeing Int
+  notes            String?
+  clientMutationId String?
+  deviceId         String?
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, date])
+}
+
+model DailyRoutine {
+  id              String              @id @default(uuid())
+  patientId       String
+  category        String
+  title           String
+  time            String              // HH:MM
+  iconEmoji       String
+  color           String
+  assignedTo      String?
+  voiceReminderId String?
+  isActive        Boolean             @default(true)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  patient         PatientProfile      @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  occurrences     RoutineOccurrence[]
+
+  @@index([patientId, isActive])
+}
+
+model RoutineOccurrence {
+  id          String         @id @default(uuid())
+  routineId   String
+  patientId   String
+  date        String         // Local YYYY-MM-DD
+  status      String         @default("pending") // pending, completed, snoozed, missed
+  completedAt DateTime?
+  completedBy String?
+  assignedTo  String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  routine     DailyRoutine   @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([routineId, date])
+  @@index([patientId, date])
+}
+
+model VoiceReminder {
+  id           String         @id @default(uuid())
+  patientId    String
+  routineType  String
+  title        String
+  time         String
+  speakerName  String
+  audioBase64  String         @default("")
+  mediaAssetId String?
+  isActive     Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+
+  patient      PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, isActive])
+}
+
+model SafeZone {
+  id        String         @id @default(uuid())
+  patientId String
+  name      String
+  lat       Float
+  lng       Float
+  radius    Int
+  isActive  Boolean        @default(true)
+  createdAt DateTime       @default(now())
+
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, isActive])
+}
+
+model LocationPing {
+  id               String         @id @default(uuid())
+  patientId        String
+  lat              Float
+  lng              Float
+  accuracy         Float
+  status           String         // INSIDE, OUTSIDE, UNAVAILABLE, STALE
+  insideZoneId     String?
+  clientMutationId String?
+  deviceId         String?
+  recordedAt       DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, recordedAt])
+}
+
+model LocationEvent {
+  id        String         @id @default(uuid())
+  patientId String
+  eventType String         // ZONE_ENTER, ZONE_EXIT, TRACKING_DISABLED
+  zoneId    String?
+  lat       Float?
+  lng       Float?
+  accuracy  Float?
+  timestamp DateTime       @default(now())
+
+  patient   PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, timestamp])
+}
+
+model CareUpdate {
+  id         String         @id @default(uuid())
+  patientId  String
+  authorId   String
+  authorName String
+  content    String
+  type       String         @default("TEXT")
+  timestamp  DateTime       @default(now())
+
+  patient    PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, timestamp])
+}
+
+model FamilyAsset {
+  id                 String         @id @default(uuid())
+  patientId          String
+  name               String
+  relation           String
+  phoneNumber        String?
+  allowCall          Boolean        @default(false)
+  requireCallConfirm Boolean        @default(true)
+  contributorUserId  String?
+  visibilityScope    String         @default("ALL") // ALL, GAMES_ONLY, MEMORIES_ONLY, HIDDEN
+  imageBase64        String?
+  audioBase64        String?
+  mediaPhotoId       String?
+  mediaAudioId       String?
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+
+  patient            PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, isActive])
+}
+
+model ScrapbookEntry {
+  id                String         @id @default(uuid())
+  patientId         String
+  title             String
+  description       String
+  imageBase64       String?
+  audioBase64       String?
+  mediaPhotoId      String?
+  mediaAudioId      String?
+  contributorUserId String?
+  contributorName   String?
+  languageCode      String?
+  eventDateLabel    String?
+  locationLabel     String?
+  visibilityScope   String         @default("ALL")
+  dateAdded         DateTime       @default(now())
+
+  patient           PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, dateAdded])
+}
+
+model LocalResource {
+  id                  String          @id @default(uuid())
+  name                String
+  category            String
+  description         String
+  state               String
+  district            String
+  locality            String
+  address             String
+  phone               String
+  emergencyPhone      String?
+  openingHours        String
+  verificationStatus  String          @default("VERIFIED")
+  telehealthAvailable Boolean         @default(false)
+  homeVisitAvailable  Boolean         @default(false)
+  createdAt           DateTime        @default(now())
+
+  savedBy             SavedResource[]
+
+  @@unique([name, district])
+  @@index([category, district])
+}
+
+model SavedResource {
+  id         String         @id @default(uuid())
+  patientId  String
+  resourceId String
+  notes      String?
+  savedAt    DateTime       @default(now())
+
+  patient    PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  resource   LocalResource  @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, resourceId])
+}
+
+// -----------------------------------------
+// COGNITIVE ENGINE
+// -----------------------------------------
+
+model CognitiveSession {
+  id               String         @id @default(uuid())
+  patientId        String
+  gameId           String
+  domain           String
+  difficultyLevel  Int
+  score            Int
+  accuracy         Float
+  reactionTimeMs   Int?
+  errors           Int
+  clientMutationId String?
+  deviceId         String?
+  completedAt      DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, domain, completedAt])
+}
+
+model HealthScore {
+  id            String         @id @default(uuid())
+  patientId     String
+  weekStartDate DateTime
+  overallScore  Int
+  cognitiveSub  Int
+  physicalSub   Int
+  sleepSub      Int
+  socialSub     Int
+  createdAt     DateTime       @default(now())
+
+  patient       PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, weekStartDate])
+}
+
+// -----------------------------------------
+// CMS & CONTENT
+// -----------------------------------------
+
+model ContentItem {
+  id          String   @id @default(uuid())
+  title       String
+  contentType String
+  domain      String?
+  payload     String
+  status      String   @default("DRAFT")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// -----------------------------------------
+// REPORTING & AUDIT
+// -----------------------------------------
+
+model CaregiverReport {
+  id               String           @id @default(uuid())
+  patientId        String
+  caregiverId      String
+  reportType       String
+  appetite         String?
+  sleep            String?
+  notes            String?
+  clientMutationId String?
+  deviceId         String?
+  createdAt        DateTime         @default(now())
+
+  patient          PatientProfile   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  caregiver        CaregiverProfile @relation(fields: [caregiverId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, createdAt])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  prevValue  String?
+  newValue   String?
+  createdAt  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+}
+
+// -----------------------------------------
+// SMRITI v1.0 FOUNDATIONS (PREFERENCES, PROVISIONING, CONSENT, SYNC, MEDIA, PUSH)
+// -----------------------------------------
+
+model PatientPreference {
+  id                   String         @id @default(uuid())
+  patientId            String         @unique
+  complexityMode       String         @default("GUIDED") // SIMPLE, GUIDED, FULL
+  scriptPreference     String?        // e.g., meetei_mayek | bengali for Manipur
+  culturalPackId       String         @default("ner-as-01")
+  reducedMotion        Boolean        @default(false)
+  highContrast         Boolean        @default(false)
+  textScale            Float          @default(1.0)
+  voiceEnabled         Boolean        @default(true)
+  voiceRate            Float          @default(0.85)
+  aiEnabled            Boolean        @default(true)
+  aiInteractionStyle   String         @default("BALANCED") // CONVERSATIONAL, TASK_FOCUSED, BALANCED
+  caregiverLockEnabled Boolean        @default(false)
+  caregiverLockPinHash String?
+  updatedByUserId      String?
+  updatedAt            DateTime       @updatedAt
+
+  patient              PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+}
+
+model PatientProvisionToken {
+  id          String         @id @default(uuid())
+  patientId   String
+  caregiverId String
+  tokenHash   String         @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime       @default(now())
+
+  patient     PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, expiresAt])
+}
+
+model ConsentRecord {
+  id              String         @id @default(uuid())
+  patientId       String
+  grantedByUserId String
+  scope           String         // LOCATION_SHARING, AI_COMPANION, FAMILY_SHARING, CLINICIAN_ACCESS, DATA_SYNC, VOICE_RECORDING
+  granted         Boolean
+  authorityType   String         @default("CAREGIVER_REPRESENTATIVE") // PATIENT_ASSENT, CAREGIVER_REPRESENTATIVE, JOINT
+  version         String         @default("1.0")
+  notes           String?
+  createdAt       DateTime       @default(now())
+
+  patient         PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, scope, createdAt])
+}
+
+model SyncMutation {
+  id               String         @id @default(uuid())
+  patientId        String
+  clientMutationId String
+  deviceId         String
+  recordType       String
+  entityId         String?
+  status           String         @default("APPLIED") // APPLIED, DEDUPLICATED, CONFLICT_RESOLVED
+  conflictDetail   String?
+  clientCreatedAt  DateTime?
+  createdAt        DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([patientId, clientMutationId])
+  @@index([patientId, createdAt])
+}
+
+model MediaAsset {
+  id               String         @id @default(uuid())
+  patientId        String
+  uploadedByUserId String?
+  category         String         // SCRAPBOOK, FAMILY_PHOTO, FAMILY_AUDIO, MEDICATION_PHOTO, VOICE_REMINDER
+  storageProvider  String         @default("LOCAL_PRIVATE") // LOCAL_PRIVATE, DB_ENCRYPTED, SUPABASE_PRIVATE
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  sha256           String?
+  encrypted        Boolean        @default(true)
+  encryptedBlob    Bytes?
+  createdAt        DateTime       @default(now())
+
+  patient          PatientProfile @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId, category])
+}
+
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model DeviceSession {
+  id         String    @id @default(uuid())
+  userId     String
+  deviceId   String
+  label      String?
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  createdAt  DateTime  @default(now())
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
