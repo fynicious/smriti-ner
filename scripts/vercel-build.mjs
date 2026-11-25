@@ -16,12 +16,18 @@ function main() {
     if (!fs.existsSync(pgSchema)) {
       throw new Error(`Missing PostgreSQL Prisma schema at ${pgSchema}`);
     }
-    run(`npx prisma generate --schema "${pgSchema}"`);
+    const directUrl =
+      process.env.DIRECT_URL?.trim() ||
+      process.env.DATABASE_URL_UNPOOLED?.trim() ||
+      process.env.POSTGRES_URL_NON_POOLING?.trim() ||
+      dbUrl.replace('-pooler.', '.');
+    const pgEnv = { ...process.env, DIRECT_URL: directUrl };
+    run(`npx prisma generate --schema "${pgSchema}"`, pgEnv);
     if (process.env.SKIP_DB_MIGRATE !== '1') {
-      run(`npx prisma migrate deploy --schema "${pgSchema}"`);
+      run(`npx prisma migrate deploy --schema "${pgSchema}"`, pgEnv);
     }
     if (process.env.SEED_SYNTHETIC_DEMO === '1') {
-      run('node scripts/seed-synthetic-demo.mjs');
+      run('node scripts/seed-synthetic-demo.mjs', pgEnv);
     }
   } else {
     run('npx prisma generate');
