@@ -83,12 +83,15 @@ Full cost comparisons and credit-card disclosures live in [SMRITI_FREE_TIER_COST
 
 ---
 
-## Documentation Index
-- [Final Engineering & Deployment Report](docs/SMRITI_FINAL_ENGINEERING_AND_DEPLOYMENT_REPORT.md)
-- [Free-Tier Cost & Limits Audit](docs/SMRITI_FREE_TIER_COST_AND_LIMITS.md)
-- [Codebase Audit & Cleanup Log](docs/SMRITI_CODEBASE_AUDIT.md)
-- [Production Database & Media Guide](docs/SMRITI_PRODUCTION_DATABASE_GUIDE.md)
-- [Security & Privacy Architecture](docs/SMRITI_SECURITY_AND_PRIVACY.md)
-- [API Reference](docs/SMRITI_API_DOCUMENTATION.md)
-- [Testing & Verification Guide](docs/SMRITI_TESTING_GUIDE.md)
-- [8-State NER Language Validation Matrix](docs/SMRITI_LANGUAGE_VALIDATION.md)
+## Complete Project Documentation & Submission Index
+
+| Project Stage | Included Artifacts & Documents |
+| :--- | :--- |
+| **1. Planning & Problem Identification** | [Milestone 1 Project Proposal (PDF)](docs/reports/SMRITI_Milestone_1_Project_Proposal_Final.pdf) · [Phase 0 Decision Record](docs/SMRITI_PHASE0_DECISION_RECORD.md) · [Phase 0 Validation](docs/SMRITI_PHASE0_VALIDATION.md) · [Product Specification v1](docs/SMRITI_PRODUCT_SPECIFICATION_V1.md) |
+| **2. Design (Architecture, DB, UI, Security)** | [Complete Technical Design Documentation (PDF)](docs/reports/SMRITI_Technical_Design_Documentation.pdf) · [Technical Design Source (MD)](docs/SMRITI_TECHNICAL_DESIGN_DOCUMENTATION.md) · [Project Design Diagrams (PDF)](docs/reports/SMRITI_Project_Design_Diagrams.pdf) · [System Architecture](docs/SMRITI_ARCHITECTURE.md) · [Product & UX Guide](docs/SMRITI_PRODUCT_ARCHITECTURE_AND_UX_GUIDE.md) · [Database & Migrations](docs/SMRITI_DATABASE_AND_MIGRATIONS.md) · [Security & Privacy](docs/SMRITI_SECURITY_AND_PRIVACY.md) |
+| **3. Development & Implementation** | Source Code (`src/`, `prisma/`, `scripts/`, `public/`) · [API Reference](docs/SMRITI_API_DOCUMENTATION.md) · [8-State NER Language Validation](docs/SMRITI_LANGUAGE_VALIDATION.md) · [Production Database Guide](docs/SMRITI_PRODUCTION_DATABASE_GUIDE.md) · [Deployment Guide](docs/SMRITI_DEPLOYMENT_GUIDE.md) · [Changelog](docs/SMRITI_CHANGELOG.md) |
+| **4. Testing & Verification** | Automated Suites (`tests/`, `.github/workflows/ci.yml`) · [Testing & Verification Guide](docs/SMRITI_TESTING_GUIDE.md) · [Comprehensive Audit](docs/SMRITI_COMPREHENSIVE_AUDIT.md) · [Codebase Audit](docs/SMRITI_CODEBASE_AUDIT.md) · [Issue Tracker](docs/SMRITI_ISSUE_TRACKER.md) |
+| **5. Results & Deployment** | [Final Engineering & Deployment Report](docs/SMRITI_FINAL_ENGINEERING_AND_DEPLOYMENT_REPORT.md) · [Autonomous Execution Report](docs/SMRITI_AUTONOMOUS_EXECUTION_REPORT.md) · [Free-Tier Cost & Limits](docs/SMRITI_FREE_TIER_COST_AND_LIMITS.md) · [Deployment Plan](docs/SMRITI_DEPLOYMENT_PLAN.md) |
+| **6. Datasets & Supporting Resources** | [Datasets, Cultural Packs & Schema Index](docs/DATASETS_AND_RESOURCES.md) · Synthetic Seed (`scripts/seed-synthetic-demo.mjs`) · NER Cultural & Linguistic Packs (`src/lib/translations.ts`, `src/lib/regional-content.ts`) |
+| **7. Presentation & UI Screenshots** | [Project Presentation Deck (12 Slides)](docs/presentation/SMRITI_Project_Presentation.md) · [Patient Phone UI](docs/screenshots/smriti-patient-dashboard-phone.png) · [Caregiver Phone UI](docs/screenshots/smriti-caregiver-dashboard-phone.png) · [Medical Phone UI](docs/screenshots/smriti-medical-dashboard-phone.png) |
+| **8. Conclusion & Future Work** | Covered in [Technical Design Documentation (Part 11)](docs/SMRITI_TECHNICAL_DESIGN_DOCUMENTATION.md) & [Project Presentation (Slides 11–12)](docs/presentation/SMRITI_Project_Presentation.md) |
